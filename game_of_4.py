@@ -1,87 +1,82 @@
-# -*- coding: utf-8 -*-
-
-end = None
-
-
-from time import sleep
+import pygame
+from pygame.locals import *
 from random import choice
 
-plansza = [[' ' for _ in range(7)] for _ in range(6)]
+def create_board():
+    return [[' ' for _ in range(7)] for _ in range(6)]
 
+def possible_columns(s):
+    return [col for col in range(7) if s[0][col] == ' ']
 
-def rysuj(s):
-    '''rysuje plansze w trybie tekstowym'''
+def check_winner(s):
+    # Check horizontal
+    for row in range(6):
+        for col in range(4):
+            if s[row][col] != ' ' and all(s[row][col + i] == s[row][col] for i in range(4)):
+                return s[row][col]
 
-    for i in range(1, 8): print(i, end=' ')
-    print()
-    print('-' * 14)
+    # Check vertical
+    for row in range(3):
+        for col in range(7):
+            if s[row][col] != ' ' and all(s[row + i][col] == s[row][col] for i in range(4)):
+                return s[row][col]
 
-    for w in range(6):
-        for k in range(7):
-            if s[w][k] == ' ':
-                print('.', end=' ')
-            else:
-                print(s[w][k], end=' ')
-        print()
-    end
-    print()
+    # Check diagonal (/)
+    for row in range(3):
+        for col in range(4):
+            if s[row][col] != ' ' and all(s[row + i][col + i] == s[row][col] for i in range(4)):
+                return s[row][col]
 
+    # Check diagonal (\)
+    for row in range(3):
+        for col in range(3, 7):
+            if s[row][col] != ' ' and all(s[row + i][col - i] == s[row][col] for i in range(4)):
+                return s[row][col]
 
-end
+    # Check for draw
+    if all(s[0][col] != ' ' for col in range(7)):
+        return '?'
 
+    return None
 
-def moj_ruch(s):
-    '''pozwala wykonac ruch w grze przez wprowadzenie numeru kolumny 1-7
-       zwraca stan planszy po wykonaniu ruchu
-       My gramy krzyzykiem "X" '''
-    while True:
-        try:
-            k = int(input('>>')) - 1
-            if s[0][k] == ' ': break
-        except:
-            pass
-        end
-    end
-    for w in range(5, -1, -1):
-        if s[w][k] == ' ':
-            s[w][k] = 'X'
-            return
-        end
-    end
+def drop_piece(board, column, piece):
+    for row in range(5, -1, -1):
+        if board[row][column] == ' ':
+            board[row][column] = piece
+            return True
+    return False
 
-
-end
-def min_max(s,player,depth=5):
-    moves=possible_columns(s)
-    if player :
-        best = [choice(moves),float('-inf')]
-        mark='X'
+def min_max(s, player, depth=5):
+    moves = possible_columns(s)
+    if player:
+        best = [choice(moves), float('-inf')]
+        mark = 'O'
     else:
-        best =  [choice(moves),float('inf')]
-        mark='O'
-    res=czy_koniec(s)
-    if depth == 0 or res is not None:
-        if res=='X':
-            return [choice(moves),1]
-        elif res=='O':
-            return [choice(moves),-1]
-        else:
-            return [choice(moves),0]
+        best = [choice(moves), float('inf')]
+        mark = 'X'
 
-    for mov in moves:
-        if s[0][mov]!=' ':
+    res = check_winner(s)
+    if depth == 0 or res is not None:
+        if res == 'O':
+            return [choice(moves), 1]
+        elif res == 'X':
+            return [choice(moves), -1]
+        else:
+            return [choice(moves), 0]
+
+    for move in moves:
+        if s[0][move] != ' ':
             continue
-        to_rem=None
-        for w in range(5, -1, -1):
-            if s[w][mov] == ' ':
-                s[w][mov] = mark
-                to_rem=w
+        to_remove = None
+        for row in range(5, -1, -1):
+            if s[row][move] == ' ':
+                s[row][move] = mark
+                to_remove = row
                 break
 
-        score = min_max(s.copy(),not player, depth - 1)
-        score[0]=mov
-        s[to_rem][mov]=' '
-
+        score = min_max(s.copy(), not player, depth - 1)
+        score[0] = move
+        s[to_remove][move] = ' '
 
         if player:
             if score[1] > best[1]:
@@ -92,132 +87,93 @@ def min_max(s,player,depth=5):
 
     return best
 
-def possible_columns(s):
-    pos_mov=[]
-    for move in range(7):
-        if s[0][move]==' ':
-            pos_mov.append(move)
-    return pos_mov
+def ai_move(board):
+    move, _ = min_max(board.copy(), True)
+    return move
 
-def ruch_komp(s):
-    '''wykonuje ruch komputera poprzez wylosowanie kolumny
-       zwraca stan planszy po wykonaniu ruchu
-       Komputer gra kolkiem "O" '''
+def draw_board(screen, board):
+    for row in range(6):
+        for col in range(7):
+            color = (255, 255, 255)  # White
+            if board[row][col] == 'X':
+                color = (255, 0, 0)  # Red
+            elif board[row][col] == 'O':
+                color = (255, 255, 0)  # Yellow
+            pygame.draw.circle(screen, color, (col * 100 + 50, row * 100 + 50), 40)
 
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((700, 600))
+    pygame.display.set_caption('Connect Four')
+    font = pygame.font.Font(None, 74)
 
-    k,_=min_max(s.copy(),False)
-    for w in range(5, -1, -1):
-        if s[w][k] == ' ':
-            s[w][k] = 'O'
-            return
-    end
+    board = create_board()
+    running = True
+    game_over = False
 
+    # Allow player to choose who starts
+    first_player = None
+    while first_player not in ('X', 'O'):
+        first_player = input("Who starts? Enter 'X' for you or 'O' for AI: ").strip().upper()
 
-end
+    current_player = first_player
 
+    while running:
+        screen.fill((0, 0, 255))  # Blue background
+        draw_board(screen, board)
+        pygame.display.flip()
 
-def czy_koniec(s):
-    '''sprawdza czy natapil koniec gry. Zwraca:
-      'X' lub 'O' gdy jedna ze stron wyrala
-      '?' gdy zapelniono plansze i nikt nie wygral
-      None gdy gre nalezy kontynuowac'''
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                running = False
+            if event.type == MOUSEBUTTONDOWN and not game_over and current_player == 'X':
+                x, y = event.pos
+                col = x // 100
+                if drop_piece(board, col, current_player):
+                    winner = check_winner(board)
+                    if winner:
+                        game_over = True
+                        if winner == '?':
+                            text = font.render("Draw!", True, (0, 0, 0))
+                        else:
+                            if winner == 'X':
+                                winner = "Player"
+                            else:
+                                winner = "Computer"
+                            text = font.render(f"{winner} Wins!", True, (0, 0, 0))
+                        screen.blit(text, (200, 250))
+                        pygame.display.flip()
+                        pygame.time.wait(3000)
+                        board = create_board()
+                        game_over = False
+                        current_player = first_player
+                    else:
+                        current_player = 'O'
 
-    # czy s� 4 w poziomie
-    for w in range(6):
-        for k in range(4):
-            if s[w][k] == ' ': continue
-            for i in range(1, 4):
-                if s[w][k + i] != s[w][k]: break
+        if not game_over and current_player == 'O':
+            col = ai_move(board)
+            drop_piece(board, col, 'O')
+            winner = check_winner(board)
+            if winner:
+                game_over = True
+                if winner == '?':
+                    text = font.render("Draw!", True, (0, 0, 0))
+                else:
+                    if winner == 'X':
+                        winner = "Player"
+                    else:
+                        winner = "Computer"
+                    text = font.render(f"{winner} Wins!", True, (0, 0, 0))
+                screen.blit(text, (200, 250))
+                pygame.display.flip()
+                pygame.time.wait(3000)
+                board = create_board()
+                game_over = False
+                current_player = first_player
             else:
-                return s[w][k]
-            end
-        end
-    end
+                current_player = 'X'
 
-    # czy s� 4 w pionie
-    for w in range(3):
-        for k in range(7):
-            if s[w][k] == ' ': continue
-            for i in range(1, 4):
-                if s[w + i][k] != s[w][k]: break
-            else:
-                return s[w][k]
-            end
-        end
-    end
+    pygame.quit()
 
-    # czy s� 4 uko�nie \
-    for w in range(3):
-        for k in range(4):
-            if s[w][k] == ' ': continue
-            for i in range(1, 4):
-                if s[w + i][k + i] != s[w][k]: break
-            else:
-                return s[w][k]
-            end
-        end
-    end
-
-    # czy s� 4 uko�nie /
-    for w in range(3):
-        for k in range(3, 7):
-            if s[w][k] == ' ': continue
-            for i in range(1, 4):
-                if s[w + i][k - i] != s[w][k]: break
-            else:
-                return s[w][k]
-            end
-        end
-    end
-
-    # czy plansza jest pelna
-    for k in range(7):
-        if s[0][k] == ' ': break
-    else:
-        return '?'
-    end
-
-    return None
-
-
-end
-
-rysuj(plansza)
-b=int(input("czy chcesz rozpocząć 1-tak,0-nie\n>>"))
-if b==0:
-    ruch_komp(plansza)
-    rysuj(plansza)
-elif b!=1:
-    raise ValueError("Invalid input: please enter 1 for 'tak' or 0 for 'nie'")
-
-
-
-
-while True:
-
-    moj_ruch(plansza)
-    rysuj(plansza)
-
-    k = czy_koniec(plansza)
-    if k == '?':
-        print('Remis')
-        break
-    elif k != None:
-        print(f'Wygral {k}')
-        break
-    end
-
-    ruch_komp(plansza)
-    sleep(0.5)
-    rysuj(plansza)
-
-    k = czy_koniec(plansza)
-    if k == '?':
-        print('Remis')
-        break
-    elif k != None:
-        print(f'Wygral {k}')
-        break
-    end
-
-end
+if __name__ == '__main__':
+    main()
